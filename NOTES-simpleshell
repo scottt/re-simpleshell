@@ -353,7 +353,8 @@ fake_random_init:
    0x8048c1f:	sub    $0x18,%esp
    0x8048c22:	movl   $0x0,(%esp)
    0x8048c29:	call   0x8048610 <time@plt>
-   0x8048c2e:	mov    %eax,0x804a54c         # SPECIAL_DATA1 = time(NULL)
+   0x8048c2e:	mov    %eax,0x804a54c         # TIME_AT_INIT = time(NULL)
+                                              # simpleshell's "info" commands reports this as "Start time"
    0x8048c33:	mov    0x804a54c,%eax
    0x8048c38:	mov    %eax,(%esp)
    0x8048c3b:	call   0x8048680 <srand@plt>
