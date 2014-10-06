@@ -1,0 +1,3 @@
+.gdb_history
+*.so
+observe-libc-start-main

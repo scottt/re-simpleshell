@@ -1,0 +1,394 @@
+1. Follow ELF Entry point to find main() address
+
+$ X=simpleshell
+$ readelf -a $X | grep Entry
+  Entry point address:               0x80486e0
+
+1-1. examine instructions after ELF entry point
+
+$ gdbx $X 0x80486e0 16i
+   0x80486e0:	xor    %ebp,%ebp
+   0x80486e2:	pop    %esi
+   0x80486e3:	mov    %esp,%ecx
+   0x80486e5:	and    $0xfffffff0,%esp
+   0x80486e8:	push   %eax
+   0x80486e9:	push   %esp
+   0x80486ea:	push   %edx
+   0x80486eb:	push   $0x8048d80
+   0x80486f0:	push   $0x8048d90
+   0x80486f5:	push   %ecx
+   0x80486f6:	push   %esi
+   0x80486f7:	push   $0x8048c76
+   0x80486fc:	call   0x80486a0 <__libc_start_main@plt>
+   0x8048701:	hlt    
+   0x8048702:	nop
+   0x8048703:	nop
+
+=> MAIN_ADDR=0x8048c76
+
+1-2. make sure 0x8048c76 is main() by creating a static executible
+
+$ gdb observe-libc-start-main 
+Reading symbols from observe-libc-start-main...done.
+(gdb) x/16i 0x8048bdc
+   0x8048bdc <_start>:	xor    %ebp,%ebp
+   0x8048bde <_start+2>:	pop    %esi
+   0x8048bdf <_start+3>:	mov    %esp,%ecx
+   0x8048be1 <_start+5>:	and    $0xfffffff0,%esp
+   0x8048be4 <_start+8>:	push   %eax
+   0x8048be5 <_start+9>:	push   %esp
+   0x8048be6 <_start+10>:	push   %edx
+   0x8048be7 <_start+11>:	push   $0x8049380
+   0x8048bec <_start+16>:	push   $0x80492e0
+   0x8048bf1 <_start+21>:	push   %ecx
+   0x8048bf2 <_start+22>:	push   %esi
+   0x8048bf3 <_start+23>:	push   $0x8048cf4
+   0x8048bf8 <_start+28>:	call   0x8048d00 <__libc_start_main>
+   0x8048bfd <_start+33>:	hlt    
+   0x8048bfe <_start+34>:	xchg   %ax,%ax
+   0x8048c00 <__x86.get_pc_thunk.bx>:	mov    (%esp),%ebx
+(gdb) info addr main
+Symbol "main" is a function at address 0x8048cf4.
+(gdb) info symbol 0x8048cf4
+
+
+2. Examine main
+   $ gdbx $X $MAIN_ADDR 66i
+
+main:
+   0x8048c76:	push   %ebp
+   0x8048c77:	mov    %esp,%ebp
+   0x8048c79:	and    $0xfffffff0,%esp
+   0x8048c7c:	sub    $0x70,%esp
+   0x8048c7f:	call   0x8048c1c  # call fake_random_init
+   0x8048c84:	call   0x8048bb3  # call print_logo
+   0x8048c89:	movl   $0x50,0x8(%esp)
+   0x8048c91:	movl   $0x0,0x4(%esp)
+   0x8048c99:	lea    0x18(%esp),%eax
+   0x8048c9d:	mov    %eax,(%esp)
+   0x8048ca0:	call   0x80486c0 <memset@plt>
+   0x8048ca5:	movl   $0x804a550,0x4(%esp)
+   0x8048cad:	movl   $0x8049193,(%esp)
+   0x8048cb4:	call   0x80485d0 <printf@plt>
+   0x8048cb9:	mov    0x804a540,%eax
+   0x8048cbe:	mov    %eax,(%esp)
+   0x8048cc1:	call   0x80485e0 <fflush@plt>
+   0x8048cc6:	mov    0x804a520,%eax
+   0x8048ccb:	mov    %eax,0x8(%esp)
+   0x8048ccf:	movl   $0x50,0x4(%esp)
+   0x8048cd7:	lea    0x18(%esp),%eax
+   0x8048cdb:	mov    %eax,(%esp)
+   0x8048cde:	call   0x80485f0 <fgets@plt> # get input
+   0x8048ce3:	test   %eax,%eax
+   0x8048ce5:	je     0x8048d77   # exit when fgets() returns NULL
+   0x8048ceb:	lea    0x18(%esp),%eax
+   0x8048cef:	mov    %eax,(%esp)
+   0x8048cf2:	call   0x8048690 <strlen@plt>
+   0x8048cf7:	mov    %eax,0x6c(%esp)
+   0x8048cfb:	mov    0x6c(%esp),%eax
+   0x8048cff:	sub    $0x1,%eax
+   0x8048d02:	movb   $0x0,0x18(%esp,%eax,1)
+   0x8048d07:	lea    0x18(%esp),%eax
+   0x8048d0b:	mov    %eax,(%esp)
+   0x8048d0e:	call   0x80487cc
+   0x8048d13:	mov    %eax,0x68(%esp)
+   0x8048d17:	cmpl   $0x6,0x68(%esp)
+   0x8048d1c:	ja     0x8048d58 # goto command_not_found
+   0x8048d1e:	mov    0x68(%esp),%eax
+   0x8048d22:	shl    $0x2,%eax
+   0x8048d25:	add    $0x80491b0,%eax
+   0x8048d2a:	mov    (%eax),%eax
+   0x8048d2c:	jmp    *%eax     # indirect jump: goto <XXX>_command
+call_login_command:
+   0x8048d2e:	call   0x80488fd # login_command()
+   0x8048d33:	jmp    0x8048d72 # goto command_end
+   0x8048d35:	call   0x8048aba
+   0x8048d3a:	jmp    0x8048d72
+   0x8048d3c:	call   0x8048890
+   0x8048d41:	jmp    0x8048d72
+   0x8048d43:	call   0x80488b6
+   0x8048d48:	jmp    0x8048d72
+call_flag_command:
+   0x8048d4a:	call   0x8048ae1 # flag_command()
+   0x8048d4f:	jmp    0x8048d72 # goto command_end
+   0x8048d51:	call   0x8048ba1
+   0x8048d56:	jmp    0x8048d72
+command_not_found:
+   0x8048d58:	movl   $0x804919b,(%esp) # string printed by puts: "Command Not Found!"
+   0x8048d5f:	call   0x8048640 <puts@plt>
+   0x8048d64:	mov    0x804a540,%eax
+   0x8048d69:	mov    %eax,(%esp)
+   0x8048d6c:	call   0x80485e0 <fflush@plt>
+   0x8048d71:	nop
+command_end:
+   0x8048d72:	jmp    0x8048c89 # Loop in REPL
+   0x8048d77:	nop
+   0x8048d78:	leave  
+   0x8048d79:	ret    
+   0x8048d7a:	nop
+
+3. try "flag" command
+
+flag_command:
+   0x8048ae1:	push   %ebp
+   0x8048ae2:	mov    %esp,%ebp
+   0x8048ae4:	sub    $0x88,%esp
+   0x8048aea:	movl   $0x8048efb,0x4(%esp) # STRCMP_STRING1: "admin"
+   0x8048af2:	movl   $0x804a550,(%esp)    # STRCMP_STRING0: LOGGED_IN_AS
+   0x8048af9:	call   0x80485c0 <strcmp@plt>
+   0x8048afe:	test   %eax,%eax
+   0x8048b00:	jne    0x8048b81 # goto permission_denied
+   0x8048b02:	movl   $0x8048f40,0x4(%esp)
+   0x8048b0a:	movl   $0x8048f42,(%esp)
+   0x8048b11:	call   0x80486b0 <fopen@plt>
+   0x8048b16:	mov    %eax,-0xc(%ebp)
+   0x8048b19:	cmpl   $0x0,-0xc(%ebp)
+   0x8048b1d:	jne    0x8048b61
+   0x8048b1f:	movl   $0x8048f59,(%esp)
+   0x8048b26:	call   0x8048620 <perror@plt>
+   0x8048b2b:	jmp    0x8048b9a
+   0x8048b2d:	mov    -0xc(%ebp),%eax
+   0x8048b30:	mov    %eax,0x8(%esp)
+   0x8048b34:	movl   $0x64,0x4(%esp)
+   0x8048b3c:	lea    -0x70(%ebp),%eax
+   0x8048b3f:	mov    %eax,(%esp)
+   0x8048b42:	call   0x80485f0 <fgets@plt>
+   0x8048b47:	test   %eax,%eax
+   0x8048b49:	je     0x8048b73
+   0x8048b4b:	mov    0x804a540,%eax
+   0x8048b50:	mov    %eax,0x4(%esp)
+   0x8048b54:	lea    -0x70(%ebp),%eax
+   0x8048b57:	mov    %eax,(%esp)
+   0x8048b5a:	call   0x80486d0 <fputs@plt>
+   0x8048b5f:	jmp    0x8048b62
+   0x8048b61:	nop
+   0x8048b62:	mov    -0xc(%ebp),%eax
+   0x8048b65:	mov    %eax,(%esp)
+   0x8048b68:	call   0x8048670 <feof@plt>
+   0x8048b6d:	test   %eax,%eax
+   0x8048b6f:	je     0x8048b2d
+   0x8048b71:	jmp    0x8048b74
+   0x8048b73:	nop
+   0x8048b74:	mov    -0xc(%ebp),%eax
+   0x8048b77:	mov    %eax,(%esp)
+   0x8048b7a:	call   0x8048600 <fclose@plt>
+   0x8048b7f:	jmp    0x8048b9a
+permission_denied:
+   0x8048b81:	movl   $0x8048f6c,(%esp) # PERMISSION_DENIED_STRING: "Permission Denied!"
+   0x8048b88:	call   0x8048640 <puts@plt>
+   0x8048b8d:	mov    0x804a540,%eax
+   0x8048b92:	mov    %eax,(%esp)
+   0x8048b95:	call   0x80485e0 <fflush@plt>
+   0x8048b9a:	mov    $0x0,%eax
+   0x8048b9f:	leave  
+   0x8048ba0:	ret    
+
+
+4. try "login" command
+
+$ gdbx $X $LOGIN_COMMAND 129i
+
+login_command:
+   0x80488fd:	push   %ebp
+   0x80488fe:	mov    %esp,%ebp
+   0x8048900:	push   %esi
+   0x8048901:	push   %ebx
+   0x8048902:	sub    $0x60,%esp
+   0x8048905:	movl   $0x8048ee9,(%esp) # LOGIN_PROMPT_STR: " "Enter your name: "
+   0x804890c:	call   0x80485d0 <printf@plt>
+   0x8048911:	mov    0x804a540,%eax
+   0x8048916:	mov    %eax,(%esp)
+   0x8048919:	call   0x80485e0 <fflush@plt>
+   0x804891e:	mov    0x804a520,%eax
+   0x8048923:	mov    %eax,0x8(%esp)
+   0x8048927:	movl   $0x20,0x4(%esp)
+   0x804892f:	lea    -0x34(%ebp),%eax
+   0x8048932:	mov    %eax,(%esp)
+login_call_fgets:
+   0x8048935:	call   0x80485f0 <fgets@plt> # fgets(LOGIN_FGETS_BUF, 0x20)
+   0x804893a:	lea    -0x34(%ebp),%eax
+   0x804893d:	mov    %eax,(%esp)
+   0x8048940:	call   0x8048690 <strlen@plt> # strlen(LOGIN_FGETS_BUF)
+   0x8048945:	mov    %eax,-0x10(%ebp)
+   0x8048948:	mov    -0x10(%ebp),%eax
+   0x804894b:	sub    $0x1,%eax
+   0x804894e:	movb   $0x0,-0x34(%ebp,%eax,1) # strip '\n' at end of string added by fgets
+   0x8048953:	movl   $0x8048efb,0x4(%esp) # LOGIN_STRCMP_STRING1: "admin"
+   0x804895b:	lea    -0x34(%ebp),%eax
+   0x804895e:	mov    %eax,(%esp)
+   0x8048961:	call   0x80485c0 <strcmp@plt>
+   0x8048966:	test   %eax,%eax
+   0x8048968:	jne    0x8048a87 # if (strcmp(LOGIN_FGETS_BUF, "admin") != 0) goto logged_in
+   0x804896e:	movl   $0x8048f01,(%esp) # LOGIN_PRINTF_AFTER_USERNAME_STR: "Enter your password: "
+   0x8048975:	call   0x80485d0 <printf@plt>
+   0x804897a:	mov    0x804a540,%eax
+   0x804897f:	mov    %eax,(%esp)
+   0x8048982:	call   0x80485e0 <fflush@plt>
+   0x8048987:	mov    0x804a520,%eax
+   0x804898c:	mov    %eax,0x8(%esp)
+   0x8048990:	movl   $0x20,0x4(%esp)
+   0x8048998:	lea    -0x54(%ebp),%eax
+   0x804899b:	mov    %eax,(%esp)
+login_call_fgets_for_password:
+   0x804899e:	call   0x80485f0 <fgets@plt> # fgets(LOGIN_FGETS_BUF_FOR_PASSWORD, 0x20)
+   0x80489a3:	lea    -0x54(%ebp),%eax
+   0x80489a6:	mov    %eax,(%esp)
+   0x80489a9:	call   0x8048690 <strlen@plt>
+   0x80489ae:	mov    %eax,-0x10(%ebp)
+   0x80489b1:	mov    -0x10(%ebp),%eax
+   0x80489b4:	sub    $0x1,%eax
+   0x80489b7:	movb   $0x0,-0x54(%ebp,%eax,1)
+   0x80489bc:	movl   $0x0,-0xc(%ebp)       # strip '\n' added by fgets
+   0x80489c3:	jmp    0x8048a41 # goto mutate_password_loop_test
+mutate_password_loop:
+   0x80489c5:	lea    -0x54(%ebp),%edx # LOGIN_FGETS_BUF_FOR_PASSWORD
+   0x80489c8:	mov    -0xc(%ebp),%eax  # loop index variable
+   0x80489cb:	add    %edx,%eax        # EAX points to character position in LOGIN_FGETS_BUF_FOR_PASSWORD
+   0x80489cd:	movzbl (%eax),%ecx      # zero extend CHARACTER into ECX
+   0x80489d0:	mov    0x804a548,%eax   # EAX = SPECIAL_DATA
+   0x80489d5:	mov    %eax,%edx        # EDX = EAX
+   0x80489d7:	sar    $0x1f,%edx       # EDX >>= 0x1f, sign-extend
+   0x80489da:	shr    $0x18,%edx       # EDX <<= 0x18, 
+                                        #  =====================> EDX = SPECIAL_DATA >> 7, sign-extend
+   0x80489dd:	add    %edx,%eax        # EAX += EDX
+   0x80489df:	and    $0xff,%eax       # EAX &= 0xff
+   0x80489e4:	sub    %edx,%eax        # EAX -= EDX
+                                        # ======================> EAX = SPECIAL_DATA & 0xff
+mutate_xor:
+   0x80489e6:	xor    %ecx,%eax        # EAX ^= ECX
+                                        # ======================> EAX ^= CHARACTER
+
+   0x80489e8:	lea    -0x54(%ebp),%ecx # ECX = LOGIN_FGETS_BUF_FOR_PASSWORD
+   0x80489eb:	mov    -0xc(%ebp),%edx  # EDX = loop index
+   0x80489ee:	add    %ecx,%edx        # EDX = LOGIN_FGETS_BUF_FOR_PASSWORD + loop index
+change_password:
+   0x80489f0:	mov    %al,(%edx)       # *(char*)EDX = EAX
+                                        # changes LOGIN_FGETS_BUF_FOR_PASSWORD
+                                        # CHARACTER ^= (SPECIAL_DATA & 0xff)
+
+   0x80489f2:	mov    -0xc(%ebp),%eax  # EAX = loop_index
+   0x80489f5:	lea    0x2(%eax),%ebx   # EBX = EAX + 2
+   0x80489f8:	mov    -0xc(%ebp),%eax  # EAX = loop_index
+   0x80489fb:	add    $0x2,%eax        # EAX += 2
+   0x80489fe:	movzbl -0x54(%ebp,%eax,1),%esi  # ESI = (zero extended character) (LOGIN_FGETS_BUF_FOR_PASSWORD + loop_index + 2)
+   0x8048a03:	mov    0x804a54c,%ecx
+   0x8048a09:	mov    $0x80008001,%edx
+   0x8048a0e:	mov    %ecx,%eax
+   0x8048a10:	imul   %edx
+   0x8048a12:	lea    (%edx,%ecx,1),%eax
+   0x8048a15:	mov    %eax,%edx
+   0x8048a17:	sar    $0xf,%edx
+   0x8048a1a:	mov    %ecx,%eax
+   0x8048a1c:	sar    $0x1f,%eax
+   0x8048a1f:	sub    %eax,%edx
+   0x8048a21:	mov    %edx,%eax
+   0x8048a23:	sar    $0x1f,%eax
+   0x8048a26:	shr    $0x18,%eax
+   0x8048a29:	add    %eax,%edx
+   0x8048a2b:	and    $0xff,%edx
+   0x8048a31:	mov    %edx,%ecx
+   0x8048a33:	sub    %eax,%ecx
+   0x8048a35:	mov    %ecx,%eax
+   0x8048a37:	xor    %esi,%eax
+change_password1:
+   0x8048a39:	mov    %al,-0x54(%ebp,%ebx,1) # changes LOGIN_FGETS_BUF_FOR_PASSWORD, default: al=k
+   0x8048a3d:	addl   $0x4,-0xc(%ebp)
+mutate_password_loop_start:
+   0x8048a41:	mov    -0x10(%ebp),%eax # 1st time, eax = 2
+   0x8048a44:	sub    $0x1,%eax        # eax--
+   0x8048a47:	cmp    -0xc(%ebp),%eax  # cmp 0, 1
+   0x8048a4a:	jg     0x80489c5 # goto mutate_password_loop
+   0x8048a50:	movl   $0x8048f17,0x4(%esp) # LOGIN_STRCMP_STRING1 "DoYouThinkThisIsPassword"
+   0x8048a58:	lea    -0x54(%ebp),%eax
+   0x8048a5b:	mov    %eax,(%esp)
+password_strcmp:
+   0x8048a5e:	call   0x80485c0 <strcmp@plt>
+   0x8048a63:	test   %eax,%eax
+   0x8048a65:	je     0x8048a87 # if (strcmp(LOGIN_FGETS_BUF_FOR_PASSWORD, "DoYouThinkThisIsPassword") == 0) goto logged_in
+   0x8048a67:	movl   $0x8048f30,(%esp) # PASSWORD_ERR_STR: "Password Error!"
+   0x8048a6e:	call   0x8048640 <puts@plt>
+   0x8048a73:	mov    0x804a540,%eax
+   0x8048a78:	mov    %eax,(%esp)
+   0x8048a7b:	call   0x80485e0 <fflush@plt>
+   0x8048a80:	mov    $0xffffffff,%eax
+   0x8048a85:	jmp    0x8048aa7 # goto login_command_exit
+logged_in:
+   0x8048a87:	lea    -0x34(%ebp),%eax
+   0x8048a8a:	mov    %eax,0x4(%esp)    # LOGIN_FGETS_BUF
+   0x8048a8e:	movl   $0x804a550,(%esp) # LOGGED_IN_AS
+   0x8048a95:	call   0x8048630 <strcpy@plt> # strcpy(LOGGED_IN_AS, LOGIN_FGETS_BUF)
+   0x8048a9a:	movl   $0x1,-0x14(%ebp)
+   0x8048aa1:	cmpl   $0x0,-0x14(%ebp)
+   0x8048aa5:	je     0x8048ab7
+login_command_exit:
+   0x8048aa7:	mov    $0x3c,%eax
+   0x8048aac:	add    %eax,%esp
+   0x8048aae:	pop    %ebx
+   0x8048aaf:	pop    %esi
+   0x8048ab0:	pop    %ebp # stack cleanup
+   0x8048ab1:	jmp    0x8048d72 # goto command_end
+   0x8048ab6:	jmp    0x5d048abb
+   0x8048abb:	mov    %esp,%ebp
+   0x8048abd:	movl   $0x6e6f6e61,0x804a550
+   0x8048ac7:	movl   $0x756f6d79,0x804a554
+   0x8048ad1:	movw   $0x73,0x804a558
+   0x8048ada:	mov    $0x0,%eax                 # strcmp(LOGGED_IN_AS, "anonymous")
+   0x8048adf:	pop    %ebp
+   0x8048ae0:	ret    
+
+$ gdbx $X $LOGIN_PROMPT_STR s
+0x8048ee9:	"Enter your name: "
+
+<...etc...>
+
+$ gdb -q -x login-call-fgets-for-password.gdb
+0xffffcde0:	0xffffcdf4	0x20	0x437d0c20 <_IO_2_1_stdin_>	0xf7ffa6b0
+
+
+$ gdbx $X 0x8048c1c 20i
+
+fake_random_init:
+   0x8048c1c:	push   %ebp
+   0x8048c1d:	mov    %esp,%ebp
+   0x8048c1f:	sub    $0x18,%esp
+   0x8048c22:	movl   $0x0,(%esp)
+   0x8048c29:	call   0x8048610 <time@plt>
+   0x8048c2e:	mov    %eax,0x804a54c         # SPECIAL_DATA1 = time(NULL)
+   0x8048c33:	mov    0x804a54c,%eax
+   0x8048c38:	mov    %eax,(%esp)
+   0x8048c3b:	call   0x8048680 <srand@plt>
+   0x8048c40:	movl   $0x6e6f6e61,0x804a550  # 
+   0x8048c4a:	movl   $0x756f6d79,0x804a554
+   0x8048c54:	movw   $0x73,0x804a558        # strcmp(LOGGED_IN_AS, "anonymous")
+special_data_init:
+   0x8048c5d:	mov    0x804a54c,%edx         # EDX = TIME_AT_INIT
+   0x8048c63:	mov    %edx,%eax              # EAX = EDX
+   0x8048c65:	shl    $0x10,%eax             # EAX <<= 0x10
+   0x8048c68:	sub    %edx,%eax              # EAX -= EDX
+   0x8048c6a:	add    $0x7a69,%eax           # EAX += 0x7a69 ('\x69\x7a' == 'zi')
+   0x8048c6f:	mov    %eax,0x804a548         # SPECIAL_DATA = EAX
+                                              # =======> SPECIAL_DATA = ((TIME_AT_INIT << 0x10) - TIME_AT_INIT + 0x7a69)
+special_data_init_end:
+   0x8048c74:	leave  
+   0x8048c75:	ret    
+
+** SPECIAL_DATA formula:
+SPECIAL_DATA = ((TIME_AT_INIT << 0x10) - TIME_AT_INIT + 0x7a69) & 0xffffffff
+Data Flow: time() -> SPECIAL_DATA -> $al in mutate_password_loop
+
+
+5. Use LD_PRELOD to control return value of time()
+See override-time.c
+
+'''
+#include <stdint.h>
+
+uint32_t time(void *p)
+{
+	return (uint32_t)0x69;
+}
+'''
+
+gdb -q -x getflag.gdb
+
+===> WIN
