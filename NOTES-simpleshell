@@ -241,14 +241,14 @@ login_call_fgets_for_password:
    0x80489bc:	movl   $0x0,-0xc(%ebp)       # strip '\n' added by fgets
    0x80489c3:	jmp    0x8048a41 # goto mutate_password_loop_test
 mutate_password_loop:
-   0x80489c5:	lea    -0x54(%ebp),%edx # LOGIN_FGETS_BUF_FOR_PASSWORD
-   0x80489c8:	mov    -0xc(%ebp),%eax  # loop index variable
+   0x80489c5:	lea    -0x54(%ebp),%edx # EDX = LOGIN_FGETS_BUF_FOR_PASSWORD
+   0x80489c8:	mov    -0xc(%ebp),%eax  # EAX = loop_index
    0x80489cb:	add    %edx,%eax        # EAX points to character position in LOGIN_FGETS_BUF_FOR_PASSWORD
-   0x80489cd:	movzbl (%eax),%ecx      # zero extend CHARACTER into ECX
+   0x80489cd:	movzbl (%eax),%ecx      # ECX = (zero extend byte) CHARACTER (LOGIN_FGETS_BUF_FOR_PASSWORD[loop_index])
    0x80489d0:	mov    0x804a548,%eax   # EAX = SPECIAL_DATA
    0x80489d5:	mov    %eax,%edx        # EDX = EAX
-   0x80489d7:	sar    $0x1f,%edx       # EDX >>= 0x1f, sign-extend
-   0x80489da:	shr    $0x18,%edx       # EDX <<= 0x18, 
+   0x80489d7:	sar    $0x1f,%edx       # EDX >>= 0x1f, sign extend
+   0x80489da:	shr    $0x18,%edx       # EDX <<= 0x18  
                                         #  =====================> EDX = SPECIAL_DATA >> 7, sign-extend
    0x80489dd:	add    %edx,%eax        # EAX += EDX
    0x80489df:	and    $0xff,%eax       # EAX &= 0xff
@@ -259,18 +259,18 @@ mutate_xor:
                                         # ======================> EAX ^= CHARACTER
 
    0x80489e8:	lea    -0x54(%ebp),%ecx # ECX = LOGIN_FGETS_BUF_FOR_PASSWORD
-   0x80489eb:	mov    -0xc(%ebp),%edx  # EDX = loop index
-   0x80489ee:	add    %ecx,%edx        # EDX = LOGIN_FGETS_BUF_FOR_PASSWORD + loop index
+   0x80489eb:	mov    -0xc(%ebp),%edx  # EDX = loop_index
+   0x80489ee:	add    %ecx,%edx        # EDX = LOGIN_FGETS_BUF_FOR_PASSWORD + loop_index
 change_password:
    0x80489f0:	mov    %al,(%edx)       # *(char*)EDX = EAX
                                         # changes LOGIN_FGETS_BUF_FOR_PASSWORD
-                                        # CHARACTER ^= (SPECIAL_DATA & 0xff)
+                                        # ======================> CHARACTER ^= (SPECIAL_DATA & 0xff)
 
    0x80489f2:	mov    -0xc(%ebp),%eax  # EAX = loop_index
    0x80489f5:	lea    0x2(%eax),%ebx   # EBX = EAX + 2
    0x80489f8:	mov    -0xc(%ebp),%eax  # EAX = loop_index
    0x80489fb:	add    $0x2,%eax        # EAX += 2
-   0x80489fe:	movzbl -0x54(%ebp,%eax,1),%esi  # ESI = (zero extended character) (LOGIN_FGETS_BUF_FOR_PASSWORD + loop_index + 2)
+   0x80489fe:	movzbl -0x54(%ebp,%eax,1),%esi  # ESI = (zero extended byte) CHARACTER (LOGIN_FGETS_BUF_FOR_PASSWORD[loop_index + 2])
    0x8048a03:	mov    0x804a54c,%ecx
    0x8048a09:	mov    $0x80008001,%edx
    0x8048a0e:	mov    %ecx,%eax
@@ -291,13 +291,13 @@ change_password:
    0x8048a35:	mov    %ecx,%eax
    0x8048a37:	xor    %esi,%eax
 change_password1:
-   0x8048a39:	mov    %al,-0x54(%ebp,%ebx,1) # changes LOGIN_FGETS_BUF_FOR_PASSWORD, default: al=k
+   0x8048a39:	mov    %al,-0x54(%ebp,%ebx,1) # changes LOGIN_FGETS_BUF_FOR_PASSWORD
    0x8048a3d:	addl   $0x4,-0xc(%ebp)
 mutate_password_loop_start:
-   0x8048a41:	mov    -0x10(%ebp),%eax # 1st time, eax = 2
-   0x8048a44:	sub    $0x1,%eax        # eax--
-   0x8048a47:	cmp    -0xc(%ebp),%eax  # cmp 0, 1
-   0x8048a4a:	jg     0x80489c5 # goto mutate_password_loop
+   0x8048a41:	mov    -0x10(%ebp),%eax #
+   0x8048a44:	sub    $0x1,%eax        # EAX--
+   0x8048a47:	cmp    -0xc(%ebp),%eax  # 
+   0x8048a4a:	jg     0x80489c5        # if ((password_len - 1) > loop_index) goto mutate_password_loop
    0x8048a50:	movl   $0x8048f17,0x4(%esp) # LOGIN_STRCMP_STRING1 "DoYouThinkThisIsPassword"
    0x8048a58:	lea    -0x54(%ebp),%eax
    0x8048a5b:	mov    %eax,(%esp)
@@ -329,9 +329,9 @@ login_command_exit:
    0x8048ab1:	jmp    0x8048d72 # goto command_end
    0x8048ab6:	jmp    0x5d048abb
    0x8048abb:	mov    %esp,%ebp
-   0x8048abd:	movl   $0x6e6f6e61,0x804a550
-   0x8048ac7:	movl   $0x756f6d79,0x804a554
-   0x8048ad1:	movw   $0x73,0x804a558
+   0x8048abd:	movl   $0x6e6f6e61,0x804a550     #
+   0x8048ac7:	movl   $0x756f6d79,0x804a554     #
+   0x8048ad1:	movw   $0x73,0x804a558           #
    0x8048ada:	mov    $0x0,%eax                 # strcmp(LOGGED_IN_AS, "anonymous")
    0x8048adf:	pop    %ebp
    0x8048ae0:	ret    
